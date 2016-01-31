@@ -8,11 +8,11 @@ from uuid import uuid4
 
 from recordclass import recordclass
 
-from ast_task.compiler import Unwind
-from ast_task.contextdict import ContextDict
+# from ast_task.compiler import Unwind
+from ast_task import asm
+from ast_task.asm import pprint_body, _pprint
 from ast_task.task import definition
 
-DEFINITION_NAME = ".".join((definition.__module__, definition.__name__))
 
 
 def _parent_name(parent_name=None, name=None):
@@ -31,6 +31,8 @@ def walk_ast(root, name='__root__', parent_name=None, only_fields=None, map_fn=l
                                     only_fields=only_fields, map_fn=map_fn):
                 yield subitem
         yield 'exit', _parent_name(parent_name, name), root
+    elif isinstance(root, asm.body):
+        pass
     elif isinstance(root, ast.AST):
         yield 'enter', _parent_name(parent_name, name), root
 
@@ -51,7 +53,23 @@ def walk_ast(root, name='__root__', parent_name=None, only_fields=None, map_fn=l
 
 
 def dump_ast(root, depth=0, append_name=None):
-    if isinstance(root, list) or isinstance(root, tuple):
+    if isinstance(root, asm.body):
+
+        print("\t" * (depth - 1), append_name, 'BODY')
+        for d, name, expr in _pprint(root, depth):
+            if not isinstance(expr, ast.AST):
+                print('\t' * (d), name + ':', expr if expr is not None else '', expr.__class__.__name__)
+                if isinstance(expr, asm.after) and isinstance(expr.opcode, ast.AST):
+                    dump_ast(expr.opcode, d + 1, append_name='')
+            else:
+                dump_ast(expr, d + 1, append_name=name)
+
+        # pprint_body(root, depth)
+        # if append_name:
+        #     print("\t" * (depth - 1), append_name, repr(root), end=" ")
+        # else:
+        #     print("\t" * (depth), repr(root), end=" ")
+    elif isinstance(root, list) or isinstance(root, tuple):
         if append_name:
             print("\t" * (depth - 1), append_name, end=" ")
         else:
@@ -468,28 +486,28 @@ def compile_chunk_objects(chunk_branch, block_name='', failure=None):
 # This should be done on a higher level
 # At least, operations have to be repeatable
 
-push = recordclass('push', ['map', 'next'])
-set_ctx = recordclass('set_ctx', ['map', 'next'])
-pop = recordclass('pop', ['map', 'next'])
-jump = recordclass('jump', ['name', 'next']) # Here, we may either set next to something, creating a separate thread or just leave it to NULL
-tnjump = recordclass('tjump', ['map', 'false', 'next'])
-decrtjump = recordclass('decrtjump', ['map', 'test', 'true', 'next'])
-exec = recordclass('exec', ['body_name', 'next'])
+# push = recordclass('push', ['map', 'next'])
+# set_ctx = recordclass('set_ctx', ['map', 'next'])
+# pop = recordclass('pop', ['map', 'next'])
+# jump = recordclass('jump', ['name', 'next']) # Here, we may either set next to something, creating a separate thread or just leave it to NULL
+# tnjump = recordclass('tjump', ['map', 'false', 'next'])
+# decrtjump = recordclass('decrtjump', ['map', 'test', 'true', 'next'])
+# exec = recordclass('exec', ['body_name', 'next'])
 
 
 
 # Any exception raised during operation is dropped into the __e context variable and then the execution jumps
 # into the __f handler
-
-code = {
-    '1': push(dict(a='b', c='d', __s='7'), None),
-    '2': jump('call', '3'),
-    '3': pop(dict(), None),
-    '7': pop(dict(a='__rtn_0'), '8'),
-    '8': decrtjump(dict(__rtn_0_ctr=1), dict(__rtn_0_ctr=0), '9', None),
-    '9': exec('body_using__rtn_0', None),
-    'call': 0
-}
+#
+# code = {
+#     '1': push(dict(a='b', c='d', __s='7'), None),
+#     '2': jump('call', '3'),
+#     '3': pop(dict(), None),
+#     '7': pop(dict(a='__rtn_0'), '8'),
+#     '8': decrtjump(dict(__rtn_0_ctr=1), dict(__rtn_0_ctr=0), '9', None),
+#     '9': exec('body_using__rtn_0', None),
+#     'call': 0
+# }
 
 
 

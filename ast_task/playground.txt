@@ -1,0 +1,5 @@
+(a, b) -> a
+
+
+Reduce the amount of variables that are passed between contexts.
+Reduce the amount of new context creations.

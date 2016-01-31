@@ -1,5 +1,5 @@
 def definition(fn):
-    pass
+    return fn
 
 def call(fn):
     return fn

@@ -21,10 +21,23 @@ In python, the context is passed automagically (we may then optimise which part 
 Every task receives arguments to it and it's follow-up tasks (success and failure)
 """
 
+# How do we do If's?
+# Comprehensions should be unwound
+#
+
 @definition
 def helper(a):
+    def mocker(d):
+        return d
+
     if a == 'b':
         other(a)
+    elif a == 'c':
+        print('dd')
+    elif a == 'c':
+        print('cc')
+    else:
+        print('gg')
     return other(b)
 
     try:
@@ -42,7 +55,10 @@ async def main(timeout_a, timeout_b=2, timeout_c=3, *args, **kwargs):
     print('a')
     try:
         (a, b) = await other('a'), await other('b')
-
+        try:
+            pass
+        except Exception:
+            pass
         c = await other(a, await other(b, 2*2, logger='asd', **kwargs))
         (a, b) = await sleep(timeout_a)
         await sleep(timeout_b)
