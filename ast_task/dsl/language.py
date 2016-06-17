@@ -30,6 +30,12 @@ class Ref(DSL):
     def __str__(self, *args, **kwargs):
         return '@{}'.format(self.name)
 
+    def set(self, op):
+        return Set(self, op)
+
+    def __eq__(self, other):
+        return Compare(self, other)
+
 
 class V(Ref):
     pass
@@ -55,6 +61,9 @@ class ModuleExtern(Extern):
     def __init__(self, module, item_name):
         super().__init__('.'.join([module.name, item_name]))
 
+    def __call__(self, *args, **kwargs):
+        return Call(self, self.value, *args, **kwargs)
+
 
 class If(DSL):
     def __init__(self, *conds):
@@ -76,14 +85,15 @@ class Else(Cond):
 
 
 class Compare(DSL):
-    def __init__(self, a, b):
+    def __init__(self, a, b, op='=='):
         self.a = a
         self.b = b
+        self.op = op
         super().__init__()
 
 
 class Call(DSL):
-    def __init__(self, name, **kwargs):
+    def __init__(self, name, *args, **kwargs):
         if isinstance(name, Extern):
             name = name
         else:
@@ -91,8 +101,10 @@ class Call(DSL):
 
         self.name = name
 
+        args = [v if isinstance(v, Ref) else Const(v) for v in args]
         kwargs = {k: v if isinstance(v, Ref) else Const(v) for k, v in kwargs.items()}
 
+        self.args = args
         self.kwargs = kwargs
 
         super().__init__()
@@ -120,6 +132,13 @@ class Set(DSL):
             a = a
         else:
             raise ValueError('a must of str, Ref: {}'.format(a.__class__.__name__))
+
+        if isinstance(b, Ref) or isinstance(b, Const) or isinstance(b, Call):
+            pass
+        else:
+            b = Const(b)
+        # else:
+        #     raise ValueError('b must of Ref, Const, Call: {}'.format(a.__class__.__name__))
 
         self.a = a
         self.b = b

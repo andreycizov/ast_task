@@ -2,7 +2,7 @@
 # - a,b,c
 from types import GeneratorType
 
-from ast_task.dsl.language import Ref, Call, Const, Seq, Set, Module, Def, Extern, If, Cond, Compare, V, Else
+from ast_task.dsl.language import Ref, Call, Const, Seq, Set, Module, Def, If, Cond, Compare, V, Else, Map
 from ast_task.sys.asm import push, pop, jmp, nop, jcmp, set
 
 
@@ -52,11 +52,12 @@ def translate_if_body(item):
 
     for name, exit_name, cond in zip(names, exit_names, item.conds):
         if cond.cond is not None:
-            yield name + '.ep', jcmp('!=', cond.cond.a, cond.cond.b, RefCode(exit_name + '.ep'))
+            yield name + '.ep', jcmp('!' + cond.cond.op, cond.cond.a, cond.cond.b, RefCode(exit_name + '.ep'))
             yield name, translate_any(cond.body)
         else:
             yield name + '.ep', nop()
             yield name, translate_any(cond.body)
+        yield name + '.xp', jmp(RefCode('.exit.ep'))
 
     yield 'exit.ep', nop()
 
@@ -80,11 +81,13 @@ def translate_seq(seq):
 def translate_set(item):
     if isinstance(item.a, Ref):
         if isinstance(item.b, Call):
-            yield '0', push({**item.b.kwargs, RefExit: RefCode('2.exit')})
+            yield '0', push({
+                **{'__arg{}'.format(i): x for i, x in enumerate(item.b.args)},
+                **item.b.kwargs, RefExit: RefCode('2.exit')})
             yield '1', jmp(item.b.name)
             yield '2.exit', pop({item.a.name: Ref(RefReturn)})
         elif isinstance(item.b, Const):
-            yield set({item.a: item.b})
+            yield set({item.a.name: item.b})
         elif isinstance(item.b, Ref):
             yield set({item.a: item.b})
         else:
@@ -92,6 +95,25 @@ def translate_set(item):
                 'Second operand of Set cannot be {}, must be Call, Const or Ref'.format(item.b.__class__.__name__))
     else:
         raise ValueError('First operand of Set cannot be {}, must be Ref'.format(item.a.__class__.__name__))
+
+
+def consume_compiled(compiled_module):
+    def sub_printout(item_name, item):
+        if isinstance(item, GeneratorType):
+            for i in item:
+                if isinstance(i, tuple):
+                    yield from sub_printout('.'.join([item_name, i[0]]), i[1])
+                else:
+                    yield from sub_printout(item_name, i)
+        else:
+            yield item_name, item
+
+    for k, v in sorted(compiled_module.items()):
+        for item in v:
+            if isinstance(item, tuple):
+                yield from sub_printout('.'.join([k, item[0]]), item[1])
+            else:
+                yield from sub_printout(k, item)
 
 
 def printout(compiled_module):
@@ -120,43 +142,36 @@ def link(compiled_module, symbol_table):
 
 
 def main():
-
-
-    module_ext = \
-        Module("moreover",
-               function=Def(['name'], Seq()),
-               get_accounts=Def(['date'], Seq()))
-
     module = Module("name",
                     a=Seq(
-                        Set('___tmp0', Call(module_ext.function, a='BING', kw='ads')),
-                        Set('___tmp1', Call(module_ext.get_accounts, a='ADWORDS', kw='ads')),
+                        V('a').set(module_ext.function(a='BING', kw='ads')),
+                        V('___tmp1').set(module_ext.get_accounts(a='ADWORDS', kw='ads')),
                     ),
-                    b=Def([Ref('date')],
+                    b=Def([V('date')],
                           Seq(
-                              Set(Ref('__tmp0'), Call(module_ext.get_accounts, date=V('date')))
+                              V('__tmp0').set(module_ext.get_accounts(date=V('date')))
                           )),
                     c=Def([Ref('date')],
                           Seq(
-                              Set(Ref('__tmp0'), Call(module_ext.get_accounts, date=V('date'))),
+                              V('__tmp0').set(module_ext.get_accounts(date=V('date'))),
                               If(
-                                  Cond(Compare(Ref('___tmp0'), Const(5)), Seq(
-                                      Set(Ref('ab'), Const(5))
+                                  Cond(V('___tmp0') == 5, Seq(
+                                      V('ab').set(5)
                                   )),
-                                  Cond(Compare(Ref('___tmp0'), Const(6)), Seq(
-                                      Set(Ref('ab'), Const(6))
+                                  Cond(V('___tmp0') == 6, Seq(
+                                      V('ab').set(5)
                                   )),
                                   Else(Seq(
-                                      Set(Ref('ab'), Const(999)),
+                                      V('ab').set(99999),
                                       If(
                                           Cond(Compare(Ref('___tmp0'), Const(5)), Seq(
-                                              Set(Ref('ab'), Const(5))
+                                              V('ab').set(5)
                                           )),
                                           Cond(Compare(Ref('___tmp0'), Const(6)), Seq(
-                                              Set(Ref('ab'), Const(6))
+                                              V('ab').set(6)
                                           )),
                                           Else(Seq(
-                                              Set(Ref('ab'), Const(999))
+                                              V('ab').set(999)
                                           ))
                                       ),
                                   ))
@@ -175,10 +190,33 @@ def main():
 
     compiled_module = compiler(module)
 
+
+    # for item in consume_compiled(compiled_module):
+    #     print(item)
+
     print('UNLINKED')
     printout(compiled_module)
-    #print('LINKED')
+    # print('LINKED')
 
 
 if __name__ == '__main__':
     main()
+
+
+def relative_path(a, b):
+    r = list(a)
+    b = list(b)
+
+    while len(b):
+        item = b[0]
+        if item is '':
+            r = r[:-1]
+            b = b[1:]
+        else:
+            break
+
+    if len(b):
+        r[-1] = b[0]
+        b = b[1:]
+
+    return r + b

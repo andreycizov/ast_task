@@ -28,3 +28,5 @@ JT's sake
 - Object Table <- Traffic.select(api_name='BING', accountid='2423432').groupby('api_name', 'accountid').aggregate( dict(cpc='sum', latestcpc='list')).sort(accountid)
 - Object Table.write('filename_obj.txt')
 
+
+
